@@ -1,0 +1,61 @@
+name: Build NumWorks .nwa
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Install ARM toolchain
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          make \
+          gcc-arm-none-eabi \
+          binutils-arm-none-eabi \
+          arm-none-eabi-newlib \
+          build-essential
+    
+    - name: Clone Epsilon SDK
+      run: |
+        cd /tmp
+        git clone --depth 1 https://github.com/numworks/epsilon.git
+    
+    - name: Prepare app files
+      run: |
+        mkdir -p /tmp/epsilon/external_apps/rsa-crypto/src
+        cp src/app.cpp /tmp/epsilon/external_apps/rsa-crypto/src/
+        cp src/app.h /tmp/epsilon/external_apps/rsa-crypto/src/
+        cp src/controller.cpp /tmp/epsilon/external_apps/rsa-crypto/src/
+        cp src/controller.h /tmp/epsilon/external_apps/rsa-crypto/src/
+        cp Makefile /tmp/epsilon/external_apps/rsa-crypto/
+    
+    - name: Build .nwa
+      run: |
+        cd /tmp/epsilon
+        make -C external_apps/rsa-crypto PLATFORM=device build
+    
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: rsa_crypto.nwa
+        path: /tmp/epsilon/external_apps/rsa-crypto/output/device/rsa_crypto.nwa
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      if: always()
+      with:
+        files: /tmp/epsilon/external_apps/rsa-crypto/output/device/rsa_crypto.nwa
+        tag_name: v1.0.0
+        body: |
+          ✅ RSA Crypto app compiled for NumWorks
+          
+          📦 Download `rsa_crypto.nwa` and install on https://my.numworks.com/apps
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
